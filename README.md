@@ -22,6 +22,8 @@ Buka [http://127.0.0.1:5000](http://127.0.0.1:5000). Di macOS/Linux, aktifkan vi
 
 Kompresi gambar hanya memerlukan paket Python dalam `requirements.txt`. Bila alat tambahan belum tersedia, halaman akan menampilkan catatan dan permintaan untuk format terkait akan menampilkan pesan kesalahan.
 
+Untuk instalasi tanpa hak administrator di Windows, biner Ghostscript juga bisa ditempatkan di `.tools/ghostscript/` (misalnya `.tools/ghostscript/runtime/bin/gswin64c.exe`). Aplikasi akan menemukannya otomatis. Folder `.tools` diabaikan Git, jadi setiap komputer yang menjalankan hasil clone perlu menyiapkan Ghostscript sendiri.
+
 ## Cara pakai
 
 Pilih atau seret satu file ke halaman, pilih tingkat kompresi, lalu klik **Kompres & Unduh**. Hasil akan terunduh otomatis dan ukuran sebelum/sesudah akan muncul di halaman.

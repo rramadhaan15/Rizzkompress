@@ -37,6 +37,12 @@ class CompressionError(Exception):
 
 
 def find_executable(*names: str) -> str | None:
+    local_tools = Path(__file__).resolve().parent / ".tools"
+    for name in names:
+        candidates = list(local_tools.glob(f"ghostscript/**/{name}.exe"))
+        candidates += list(local_tools.glob(f"libreoffice/**/{name}.exe"))
+        if candidates:
+            return str(candidates[-1])
     for name in names:
         found = shutil.which(name)
         if found:
