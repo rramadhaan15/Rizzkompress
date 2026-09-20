@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a25">
+  <title>Rizzkompress — Kecilkan file, jaga privasi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Rizzkompress, kembali ke beranda">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>rizz<span class="brand-accent">kompress</span><span class="brand-dot">.</span></span>
+      </a>
+      <span class="local-badge"><span class="status-dot"></span> 100% lokal di perangkatmu</span>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> FILE LEBIH RINGAN, KERJA LEBIH LANCAR</div>
+          <h1 id="hero-title">Ukuran turun.<br><em>Tenang</em> tetap utuh.</h1>
+          <p>Kompres PDF, gambar, dan dokumen Office langsung dari browser. File diproses di komputermu sendiri—tanpa diunggah ke layanan luar.</p>
+          <div class="hero-points">
+            <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg> Privasi terjaga</span>
+            <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg> Langsung unduh</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="art-file art-file-back"><div class="art-file-lines"></div></div>
+          <div class="art-file art-file-front"><span>PDF</span><div class="art-file-lines"></div><div class="art-file-lines short"></div></div>
+          <div class="art-arrow">↘</div>
+          <div class="art-pill"><span>↓</span> lebih ringan</div>
+        </div>
+      </section>
+
+      <section class="workspace" aria-labelledby="workspace-title">
+        <div class="section-heading">
+          <div><span class="section-index">01 / MULAI DI SINI</span><h2 id="workspace-title">Kompres file kamu</h2></div>
+          <p>Satu file, beberapa klik, selesai.</p>
+        </div>
+
+        <form id="compress-form" class="compress-card" novalidate>
+          <div class="card-topline"><span class="step-label"><span>1</span> Pilih file</span><span class="file-limit">MAKS. 200 MB</span></div>
+          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Pilih file atau seret file ke sini">
+            <input id="file-input" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.docx,.pptx,.xlsx" hidden>
+            <div class="upload-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 21V7m0 0-5 5m5-5 5 5M6 21v5h20v-5"/></svg></div>
+            <strong id="dropzone-title">Seret file ke sini</strong>
+            <span>atau <span class="browse-text">pilih dari perangkat</span></span>
+            <small>PDF, JPG, PNG, WebP, BMP, TIFF, DOCX, PPTX, XLSX</small>
+          </div>
+          <div id="selected-file" class="selected-file" hidden>
+            <span class="selected-icon" aria-hidden="true">↳</span>
+            <div class="selected-details"><strong id="selected-name"></strong><span id="selected-size"></span></div>
+            <button type="button" id="remove-file" class="remove-file" aria-label="Hapus file terpilih">×</button>
+          </div>
+
+          <div class="level-header"><span class="step-label"><span>2</span> Atur tingkat kompresi</span><span class="optional-label">SESUAI KEBUTUHANMU</span></div>
+          <div class="level-grid" role="radiogroup" aria-label="Tingkat kompresi">
+            <label class="level-option"><input type="radio" name="level" value="kuat"><span class="level-content"><span class="level-title">Kuat <span class="radio-dot"></span></span><span class="level-description">Ukuran paling kecil</span><span class="level-hint">Untuk kirim cepat</span></span></label>
+            <label class="level-option"><input type="radio" name="level" value="sedang" checked><span class="level-content"><span class="level-title">Sedang <span class="radio-dot"></span></span><span class="level-description">Ukuran & kualitas seimbang</span><span class="level-hint">Pilihan terbaik</span></span></label>
+            <label class="level-option"><input type="radio" name="level" value="ringan"><span class="level-content"><span class="level-title">Ringan <span class="radio-dot"></span></span><span class="level-description">Kualitas lebih terjaga</span><span class="level-hint">Untuk tampilan detail</span></span></label>
+          </div>
+
+          <div id="error-box" class="message error-message" role="alert" hidden></div>
+          <div class="card-footer"><p><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> Diproses secara lokal. File sementara dihapus setelah selesai.</p><button id="submit-button" class="primary-button" type="submit"><span class="button-label">Kompres & Unduh</span><span class="button-arrow" aria-hidden="true">↗</span></button></div>
+        </form>
+
+        <div id="result-panel" class="result-panel" aria-live="polite" hidden>
+          <div class="result-check" aria-hidden="true">✓</div>
+          <div class="result-copy"><strong id="result-title">File siap diunduh</strong><span id="result-detail"></span></div>
+          <a id="download-again" class="download-again" href="#" download>Unduh lagi <span aria-hidden="true">↓</span></a>
+        </div>
+      </section>
+
+      <section class="info-section" aria-label="Informasi aplikasi">
+        <div class="info-card"><span class="info-number">01</span><div class="info-icon" aria-hidden="true">◎</div><h3>Privasi dulu</h3><p>Berjalan di localhost. Dokumenmu tidak dikirim ke server internet.</p></div>
+        <div class="info-card"><span class="info-number">02</span><div class="info-icon" aria-hidden="true">◇</div><h3>Format fleksibel</h3><p>PDF, gambar, serta DOCX, PPTX, dan XLSX yang diubah menjadi PDF.</p></div>
+        <div class="info-card"><span class="info-number">03</span><div class="info-icon" aria-hidden="true">↘</div><h3>Hasil aman</h3><p>Jika kompresi membuat PDF atau gambar lebih besar, file aslinya yang diberikan.</p></div>
+      </section>
+      <p id="dependency-note" class="dependency-note" hidden></p>
+    </main>
+
+    <footer class="site-footer"><span>© Rizzkompress</span><span>Dibuat untuk file yang lebih ringan, tanpa mengorbankan privasi.</span></footer>
+  </div>
+</body>
+</html>
