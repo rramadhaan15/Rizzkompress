@@ -103,7 +103,7 @@ form.addEventListener('submit', async event => {
 fetch('/api/status').then(response => response.json()).then(status => {
   const missing = [];
   if (!status.ghostscript) missing.push('Ghostscript belum ditemukan (diperlukan untuk PDF dan file Office)');
-  if (!status.libreoffice) missing.push('LibreOffice belum ditemukan (diperlukan untuk DOCX, PPTX, XLSX)');
+  if (!status.office_converter) missing.push('Microsoft Office atau LibreOffice belum ditemukan (diperlukan untuk DOCX, PPTX, XLSX)');
   if (missing.length) {
     const note = document.getElementById('dependency-note');
     note.textContent = `Catatan: ${missing.join('; ')}. Lihat README untuk instalasi.`;

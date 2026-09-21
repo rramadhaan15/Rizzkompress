@@ -9,6 +9,9 @@ import tempfile
 from pathlib import Path
 from urllib.parse import quote
 
+if os.name == "nt":
+    import winreg
+
 from flask import Flask, Response, jsonify, render_template, request
 from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -67,6 +70,36 @@ def libreoffice() -> str | None:
     return find_executable("soffice", "libreoffice")
 
 
+def microsoft_office_app(extension: str) -> str | None:
+    """Return the installed Microsoft Office executable for an input format."""
+    if os.name != "nt":
+        return None
+    executable_names = {".docx": "WINWORD.EXE", ".pptx": "POWERPNT.EXE", ".xlsx": "EXCEL.EXE"}
+    executable_name = executable_names.get(extension)
+    if not executable_name:
+        return None
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executable_name}",
+        ) as key:
+            path = winreg.QueryValue(key, None)
+            if path and Path(path).is_file():
+                return path
+    except OSError:
+        pass
+    standard = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Microsoft Office" / "root" / "Office16" / executable_name
+    return str(standard) if standard.is_file() else None
+
+
+def office_converter_available(extension: str | None = None) -> bool:
+    if libreoffice():
+        return True
+    if extension:
+        return bool(microsoft_office_app(extension))
+    return any(microsoft_office_app(item) for item in OFFICE_EXTENSIONS)
+
+
 def run_command(command: list[str], label: str, timeout: int = 180) -> None:
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
@@ -121,18 +154,28 @@ def compress_image(source: Path, destination: Path, level: str) -> None:
 
 def convert_office(source: Path, temp_dir: Path) -> Path:
     executable = libreoffice()
-    if not executable:
-        raise CompressionError("LibreOffice belum terpasang. Instal LibreOffice untuk memproses file Office.")
     output_dir = temp_dir / "converted"
     output_dir.mkdir()
-    profile = (temp_dir / "lo-profile").as_uri()
-    run_command(
-        [executable, f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(source)],
-        "LibreOffice",
-    )
     result = output_dir / f"{source.stem}.pdf"
+    if executable:
+        profile = (temp_dir / "lo-profile").as_uri()
+        run_command(
+            [executable, f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(source)],
+            "LibreOffice",
+        )
+    elif microsoft_office_app(source.suffix.lower()):
+        script = Path(__file__).resolve().parent / "office_convert.vbs"
+        run_command(
+            ["cscript.exe", "//NoLogo", str(script), str(source), str(result), source.suffix.lower()],
+            "Microsoft Office",
+        )
+    else:
+        app_name = {".docx": "Microsoft Word", ".pptx": "Microsoft PowerPoint", ".xlsx": "Microsoft Excel"}.get(
+            source.suffix.lower(), "LibreOffice"
+        )
+        raise CompressionError(f"{app_name} atau LibreOffice belum terpasang untuk memproses format ini.")
     if not result.is_file() or result.stat().st_size == 0:
-        raise CompressionError("LibreOffice tidak dapat mengonversi dokumen ini ke PDF.")
+        raise CompressionError("Aplikasi Office tidak dapat mengonversi dokumen ini ke PDF.")
     return result
 
 
@@ -156,7 +199,13 @@ def index():
 
 @app.get("/api/status")
 def status():
-    return jsonify({"ghostscript": bool(ghostscript()), "libreoffice": bool(libreoffice())})
+    return jsonify(
+        {
+            "ghostscript": bool(ghostscript()),
+            "office_converter": office_converter_available(),
+            "libreoffice": bool(libreoffice()),
+        }
+    )
 
 
 @app.errorhandler(RequestEntityTooLarge)

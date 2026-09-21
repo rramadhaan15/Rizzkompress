@@ -18,7 +18,7 @@ Buka [http://127.0.0.1:5000](http://127.0.0.1:5000). Di macOS/Linux, aktifkan vi
 ### Alat tambahan
 
 - **Ghostscript** diperlukan untuk PDF dan file Office. Instal dari [situs resminya](https://www.ghostscript.com/releases/gsdnld.html), lalu pastikan `gs` (macOS/Linux) atau `gswin64c` (Windows) ada di `PATH`. Di Windows, instalasi standar dalam `Program Files\gs` juga terdeteksi otomatis.
-- **LibreOffice** diperlukan hanya untuk DOCX, PPTX, dan XLSX. Instal dari [situs resminya](https://www.libreoffice.org/download/download-libreoffice/), lalu pastikan `soffice` ada di `PATH`. Instalasi standar Windows dalam `Program Files\LibreOffice` juga terdeteksi otomatis.
+- **Microsoft Office atau LibreOffice** diperlukan hanya untuk DOCX, PPTX, dan XLSX. Di Windows, aplikasi otomatis memakai Word, PowerPoint, atau Excel yang sudah terpasang. Sebagai alternatif lintas platform, instal [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) dan pastikan `soffice` ada di `PATH`. Instalasi standar Windows dalam `Program Files\LibreOffice` juga terdeteksi otomatis.
 
 Kompresi gambar hanya memerlukan paket Python dalam `requirements.txt`. Bila alat tambahan belum tersedia, halaman akan menampilkan catatan dan permintaan untuk format terkait akan menampilkan pesan kesalahan.
 
