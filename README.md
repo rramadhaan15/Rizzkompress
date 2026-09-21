@@ -1,6 +1,6 @@
 # Rizzkompress
 
-Kompres PDF dan gambar di komputer sendiri, atau ubah dokumen Office menjadi PDF lalu kompres. Aplikasi hanya berjalan pada `127.0.0.1`; berkas sementara dibersihkan sesudah unduhan selesai.
+Kompres file di komputer sendiri. PDF, gambar, dan dokumen Office dioptimalkan dalam format aslinya, sedangkan format lainnya dibuat menjadi arsip ZIP. Aplikasi hanya berjalan pada `127.0.0.1`; berkas sementara dibersihkan sesudah unduhan selesai.
 
 ## Persiapan
 
@@ -18,9 +18,7 @@ Buka [http://127.0.0.1:5000](http://127.0.0.1:5000). Di macOS/Linux, aktifkan vi
 ### Alat tambahan
 
 - **Ghostscript** diperlukan untuk PDF dan file Office. Instal dari [situs resminya](https://www.ghostscript.com/releases/gsdnld.html), lalu pastikan `gs` (macOS/Linux) atau `gswin64c` (Windows) ada di `PATH`. Di Windows, instalasi standar dalam `Program Files\gs` juga terdeteksi otomatis.
-- **Microsoft Office atau LibreOffice** diperlukan hanya untuk DOCX, PPTX, dan XLSX. Di Windows, aplikasi otomatis memakai Word, PowerPoint, atau Excel yang sudah terpasang. Sebagai alternatif lintas platform, instal [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) dan pastikan `soffice` ada di `PATH`. Instalasi standar Windows dalam `Program Files\LibreOffice` juga terdeteksi otomatis.
-
-Kompresi gambar hanya memerlukan paket Python dalam `requirements.txt`. Bila alat tambahan belum tersedia, halaman akan menampilkan catatan dan permintaan untuk format terkait akan menampilkan pesan kesalahan.
+Kompresi gambar, DOCX, PPTX, XLSX, dan arsip generik hanya memerlukan paket Python dalam `requirements.txt`. Dokumen Office tidak membutuhkan Microsoft Office atau LibreOffice.
 
 Untuk instalasi tanpa hak administrator di Windows, biner Ghostscript juga bisa ditempatkan di `.tools/ghostscript/` (misalnya `.tools/ghostscript/runtime/bin/gswin64c.exe`). Aplikasi akan menemukannya otomatis. Folder `.tools` diabaikan Git, jadi setiap komputer yang menjalankan hasil clone perlu menyiapkan Ghostscript sendiri.
 
@@ -34,7 +32,7 @@ Pilih atau seret satu file ke halaman, pilih tingkat kompresi, lalu klik **Kompr
 | Sedang | Ghostscript `/ebook` | JPEG kualitas 72, sisi maks. 2400 px |
 | Ringan | Ghostscript `/printer` | JPEG kualitas 86, sisi maks. 3600 px |
 
-Gambar keluaran memakai JPEG; area transparan diberi latar putih. Bila PDF atau gambar hasil kompresi lebih besar, file asli dikembalikan. Untuk dokumen Office, hasil selalu PDF, dan versi PDF yang lebih kecil dipilih antara hasil konversi dan hasil kompresi. Batas ukuran masukan: **200 MB**.
+Gambar keluaran memakai JPEG; area transparan diberi latar putih. Bila PDF, gambar, atau dokumen Office hasil kompresi lebih besar, file asli dikembalikan. Format lain dikembalikan sebagai ZIP. Batas ukuran masukan: **200 MB**.
 
 ## Privasi
 

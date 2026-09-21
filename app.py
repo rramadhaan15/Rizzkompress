@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 from urllib.parse import quote
-
-if os.name == "nt":
-    import winreg
 
 from flask import Flask, Response, jsonify, render_template, request
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -22,11 +21,15 @@ MAX_FILE_SIZE = 200 * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 OFFICE_EXTENSIONS = {".docx", ".pptx", ".xlsx"}
-ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | OFFICE_EXTENSIONS | {".pdf"}
+OFFICE_MIME_TYPES = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 LEVELS = {
-    "kuat": {"pdf": "/screen", "quality": 52, "max_side": 1600},
-    "sedang": {"pdf": "/ebook", "quality": 72, "max_side": 2400},
-    "ringan": {"pdf": "/printer", "quality": 86, "max_side": 3600},
+    "kuat": {"pdf": "/screen", "quality": 52, "max_side": 1600, "zip": 9},
+    "sedang": {"pdf": "/ebook", "quality": 72, "max_side": 2400, "zip": 6},
+    "ringan": {"pdf": "/printer", "quality": 86, "max_side": 3600, "zip": 3},
 }
 
 app = Flask(__name__)
@@ -55,7 +58,6 @@ def find_executable(*names: str) -> str | None:
         for root in filter(None, roots):
             for name in names:
                 candidates = list((Path(root) / "gs").glob(f"gs*/bin/{name}.exe"))
-                candidates += [Path(root) / "LibreOffice" / "program" / f"{name}.exe"]
                 candidates = [candidate for candidate in candidates if candidate.is_file()]
                 if candidates:
                     return str(candidates[-1])
@@ -64,40 +66,6 @@ def find_executable(*names: str) -> str | None:
 
 def ghostscript() -> str | None:
     return find_executable("gswin64c", "gswin32c", "gs")
-
-
-def libreoffice() -> str | None:
-    return find_executable("soffice", "libreoffice")
-
-
-def microsoft_office_app(extension: str) -> str | None:
-    """Return the installed Microsoft Office executable for an input format."""
-    if os.name != "nt":
-        return None
-    executable_names = {".docx": "WINWORD.EXE", ".pptx": "POWERPNT.EXE", ".xlsx": "EXCEL.EXE"}
-    executable_name = executable_names.get(extension)
-    if not executable_name:
-        return None
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
-            rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executable_name}",
-        ) as key:
-            path = winreg.QueryValue(key, None)
-            if path and Path(path).is_file():
-                return path
-    except OSError:
-        pass
-    standard = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Microsoft Office" / "root" / "Office16" / executable_name
-    return str(standard) if standard.is_file() else None
-
-
-def office_converter_available(extension: str | None = None) -> bool:
-    if libreoffice():
-        return True
-    if extension:
-        return bool(microsoft_office_app(extension))
-    return any(microsoft_office_app(item) for item in OFFICE_EXTENSIONS)
 
 
 def run_command(command: list[str], label: str, timeout: int = 180) -> None:
@@ -152,31 +120,69 @@ def compress_image(source: Path, destination: Path, level: str) -> None:
         raise CompressionError("Gambar tidak dapat dibuka atau formatnya tidak valid.") from exc
 
 
-def convert_office(source: Path, temp_dir: Path) -> Path:
-    executable = libreoffice()
-    output_dir = temp_dir / "converted"
-    output_dir.mkdir()
-    result = output_dir / f"{source.stem}.pdf"
-    if executable:
-        profile = (temp_dir / "lo-profile").as_uri()
-        run_command(
-            [executable, f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(source)],
-            "LibreOffice",
-        )
-    elif microsoft_office_app(source.suffix.lower()):
-        script = Path(__file__).resolve().parent / "office_convert.vbs"
-        run_command(
-            ["cscript.exe", "//NoLogo", str(script), str(source), str(result), source.suffix.lower()],
-            "Microsoft Office",
-        )
-    else:
-        app_name = {".docx": "Microsoft Word", ".pptx": "Microsoft PowerPoint", ".xlsx": "Microsoft Excel"}.get(
-            source.suffix.lower(), "LibreOffice"
-        )
-        raise CompressionError(f"{app_name} atau LibreOffice belum terpasang untuk memproses format ini.")
-    if not result.is_file() or result.stat().st_size == 0:
-        raise CompressionError("Aplikasi Office tidak dapat mengonversi dokumen ini ke PDF.")
-    return result
+def optimize_office_image(data: bytes, suffix: str, level: str) -> bytes:
+    """Reduce embedded Office images while retaining their original format."""
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            image.thumbnail((LEVELS[level]["max_side"],) * 2, Image.Resampling.LANCZOS)
+            output = io.BytesIO()
+            if suffix in {".jpg", ".jpeg"}:
+                image.convert("RGB").save(
+                    output, "JPEG", quality=LEVELS[level]["quality"], optimize=True, progressive=True
+                )
+            elif suffix == ".png":
+                image.save(output, "PNG", optimize=True, compress_level=LEVELS[level]["zip"])
+            elif suffix == ".webp":
+                image.save(output, "WEBP", quality=LEVELS[level]["quality"], method=6)
+            else:
+                return data
+            optimized = output.getvalue()
+            return optimized if len(optimized) < len(data) else data
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        return data
+
+
+def compress_office(source: Path, destination: Path, level: str) -> None:
+    """Repack an Open XML Office document and optimize its embedded images."""
+    media_roots = ("word/media/", "ppt/media/", "xl/media/")
+    try:
+        with zipfile.ZipFile(source, "r") as incoming:
+            entries = incoming.infolist()
+            total_uncompressed = sum(entry.file_size for entry in entries)
+            if len(entries) > 10000 or total_uncompressed > 1024 * 1024 * 1024:
+                raise CompressionError("Dokumen Office terlalu kompleks untuk diproses dengan aman.")
+            with zipfile.ZipFile(
+                destination,
+                "w",
+                compression=zipfile.ZIP_DEFLATED,
+                compresslevel=LEVELS[level]["zip"],
+            ) as outgoing:
+                for entry in entries:
+                    data = incoming.read(entry)
+                    normalized = entry.filename.lower()
+                    if normalized.startswith(media_roots):
+                        data = optimize_office_image(data, Path(normalized).suffix, level)
+                    entry.compress_type = zipfile.ZIP_DEFLATED
+                    entry._compresslevel = LEVELS[level]["zip"]
+                    outgoing.writestr(entry, data)
+    except CompressionError:
+        raise
+    except (OSError, RuntimeError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise CompressionError("Dokumen Office rusak atau tidak dapat dibuka.") from exc
+
+
+def compress_generic(source: Path, destination: Path, original_name: str, level: str) -> None:
+    try:
+        with zipfile.ZipFile(
+            destination,
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=LEVELS[level]["zip"],
+        ) as archive:
+            archive.write(source, arcname=original_name)
+    except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+        raise CompressionError("File tidak dapat dibuat menjadi arsip ZIP.") from exc
 
 
 def save_upload(upload, destination: Path) -> int:
@@ -199,13 +205,7 @@ def index():
 
 @app.get("/api/status")
 def status():
-    return jsonify(
-        {
-            "ghostscript": bool(ghostscript()),
-            "office_converter": office_converter_available(),
-            "libreoffice": bool(libreoffice()),
-        }
-    )
+    return jsonify({"ghostscript": bool(ghostscript())})
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -224,8 +224,8 @@ def compress():
 
     filename = secure_filename(upload.filename)
     extension = Path(filename).suffix.lower()
-    if not filename or extension not in ALLOWED_EXTENSIONS:
-        return jsonify({"error": "Format tidak didukung. Gunakan PDF, JPG, PNG, WebP, BMP, TIFF, DOCX, PPTX, atau XLSX."}), 400
+    if not filename:
+        return jsonify({"error": "Nama file tidak valid. Ubah nama file lalu coba lagi."}), 400
 
     temporary = tempfile.TemporaryDirectory(prefix="rizzkompress-")
     folder = Path(temporary.name)
@@ -246,14 +246,30 @@ def compress():
             result = output if output.stat().st_size < original_size else source
             result_name = f"{Path(filename).stem}-kompres.jpg" if result == output else filename
         else:
-            converted = convert_office(source, folder)
-            output = folder / "compressed.pdf"
-            compress_pdf(converted, output, level)
-            result = output if output.stat().st_size < converted.stat().st_size else converted
-            result_name = f"{Path(filename).stem}-kompres.pdf"
+            if extension in OFFICE_EXTENSIONS:
+                output = folder / f"compressed{extension}"
+                compress_office(source, output, level)
+                result = output if output.stat().st_size < original_size else source
+                result_name = f"{Path(filename).stem}-kompres{extension}" if result == output else filename
+            else:
+                output = folder / "compressed.zip"
+                compress_generic(source, output, filename, level)
+                result = output
+                result_name = f"{Path(filename).stem or 'file'}-kompres.zip"
 
         result_size = result.stat().st_size
-        response = Response(stream_file(result, temporary), mimetype="application/pdf" if result.suffix == ".pdf" else "image/jpeg" if result.suffix in {".jpg", ".jpeg"} else "application/octet-stream")
+        mime_type = (
+            "application/pdf"
+            if result.suffix == ".pdf"
+            else "image/jpeg"
+            if result.suffix in {".jpg", ".jpeg"}
+            else "application/zip"
+            if result.suffix == ".zip"
+            else OFFICE_MIME_TYPES[result.suffix]
+            if result.suffix in OFFICE_MIME_TYPES
+            else "application/octet-stream"
+        )
+        response = Response(stream_file(result, temporary), mimetype=mime_type)
         response.headers["Content-Length"] = str(result_size)
         response.headers["Content-Disposition"] = f"attachment; filename=download{result.suffix}; filename*=UTF-8''{quote(result_name)}"
         response.headers["X-Original-Size"] = str(original_size)

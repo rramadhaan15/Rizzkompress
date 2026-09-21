@@ -8,7 +8,6 @@ const errorBox = document.getElementById('error-box');
 const resultPanel = document.getElementById('result-panel');
 const submitButton = document.getElementById('submit-button');
 const downloadAgain = document.getElementById('download-again');
-const allowed = new Set(['pdf','jpg','jpeg','png','webp','bmp','tif','tiff','docx','pptx','xlsx']);
 let file = null;
 let downloadUrl = null;
 
@@ -28,8 +27,6 @@ function setFile(candidate) {
   errorBox.hidden = true;
   resultPanel.hidden = true;
   if (!candidate) return;
-  const extension = candidate.name.split('.').pop().toLowerCase();
-  if (!allowed.has(extension)) return showError('Format tidak didukung. Pilih PDF, gambar, atau dokumen Office.');
   if (candidate.size > 200 * 1024 * 1024) return showError('Ukuran file melebihi batas 200 MB.');
   if (!candidate.size) return showError('File kosong. Pilih file lain.');
   file = candidate;
@@ -103,7 +100,6 @@ form.addEventListener('submit', async event => {
 fetch('/api/status').then(response => response.json()).then(status => {
   const missing = [];
   if (!status.ghostscript) missing.push('Ghostscript belum ditemukan (diperlukan untuk PDF dan file Office)');
-  if (!status.office_converter) missing.push('Microsoft Office atau LibreOffice belum ditemukan (diperlukan untuk DOCX, PPTX, XLSX)');
   if (missing.length) {
     const note = document.getElementById('dependency-note');
     note.textContent = `Catatan: ${missing.join('; ')}. Lihat README untuk instalasi.`;
