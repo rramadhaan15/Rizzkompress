@@ -40,6 +40,17 @@ class CompressionFlowTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(response.get_data())) as archive:
             self.assertEqual(archive.read("note.txt"), b"hello world" * 100)
 
+    def test_estimate_returns_all_compression_levels(self):
+        response = self.client.post(
+            "/api/estimate",
+            data={"file": (io.BytesIO(b"estimate me " * 500), "sample.dat")},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.json["estimates"]), {"kuat", "sedang", "ringan"})
+        for estimate in response.json["estimates"].values():
+            self.assertGreater(estimate["size"], 0)
+            self.assertIn("saved_percent", estimate)
+
     def test_office_document_is_compressed_without_external_app(self):
         source = io.BytesIO()
         with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:

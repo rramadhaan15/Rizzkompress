@@ -198,6 +198,41 @@ def save_upload(upload, destination: Path) -> int:
     return total
 
 
+def process_file(
+    source: Path,
+    filename: str,
+    extension: str,
+    level: str,
+    folder: Path,
+    original_size: int,
+) -> tuple[Path, str]:
+    folder.mkdir(parents=True, exist_ok=True)
+    if extension == ".pdf":
+        with source.open("rb") as document:
+            if b"%PDF-" not in document.read(1024):
+                raise CompressionError("File PDF tidak valid.")
+        output = folder / "compressed.pdf"
+        compress_pdf(source, output, level)
+        result = output if output.stat().st_size < original_size else source
+        result_name = f"{Path(filename).stem}-kompres.pdf" if result == output else filename
+    elif extension in IMAGE_EXTENSIONS:
+        output = folder / "compressed.jpg"
+        compress_image(source, output, level)
+        result = output if output.stat().st_size < original_size else source
+        result_name = f"{Path(filename).stem}-kompres.jpg" if result == output else filename
+    elif extension in OFFICE_EXTENSIONS:
+        output = folder / f"compressed{extension}"
+        compress_office(source, output, level)
+        result = output if output.stat().st_size < original_size else source
+        result_name = f"{Path(filename).stem}-kompres{extension}" if result == output else filename
+    else:
+        output = folder / "compressed.zip"
+        compress_generic(source, output, filename, level)
+        result = output
+        result_name = f"{Path(filename).stem or 'file'}-kompres.zip"
+    return result, result_name
+
+
 @app.get("/")
 def index():
     return render_template("index.html")
@@ -211,6 +246,39 @@ def status():
 @app.errorhandler(RequestEntityTooLarge)
 def file_too_large(_error):
     return jsonify({"error": "Ukuran file melebihi batas 200 MB."}), 413
+
+
+@app.post("/api/estimate")
+def estimate():
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return jsonify({"error": "Pilih file yang ingin dikompres."}), 400
+    filename = secure_filename(upload.filename)
+    if not filename:
+        return jsonify({"error": "Nama file tidak valid. Ubah nama file lalu coba lagi."}), 400
+    extension = Path(filename).suffix.lower()
+    with tempfile.TemporaryDirectory(prefix="rizzkompress-estimate-") as temporary:
+        folder = Path(temporary)
+        try:
+            source = folder / f"source{extension}"
+            original_size = save_upload(upload, source)
+            estimates = {}
+            for level in LEVELS:
+                result, _ = process_file(
+                    source, filename, extension, level, folder / level, original_size
+                )
+                result_size = result.stat().st_size
+                estimates[level] = {
+                    "size": result_size,
+                    "saved_percent": round((1 - result_size / original_size) * 100, 1),
+                    "used_original": result == source,
+                }
+            return jsonify({"original_size": original_size, "estimates": estimates})
+        except CompressionError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception:
+            app.logger.exception("Unexpected estimate failure")
+            return jsonify({"error": "Ukuran hasil tidak dapat dihitung. Coba file lain."}), 500
 
 
 @app.post("/api/compress")
@@ -232,30 +300,9 @@ def compress():
     try:
         source = folder / f"source{extension}"
         original_size = save_upload(upload, source)
-        if extension == ".pdf":
-            with source.open("rb") as document:
-                if b"%PDF-" not in document.read(1024):
-                    raise CompressionError("File PDF tidak valid.")
-            output = folder / "compressed.pdf"
-            compress_pdf(source, output, level)
-            result = output if output.stat().st_size < original_size else source
-            result_name = f"{Path(filename).stem}-kompres.pdf" if result == output else filename
-        elif extension in IMAGE_EXTENSIONS:
-            output = folder / "compressed.jpg"
-            compress_image(source, output, level)
-            result = output if output.stat().st_size < original_size else source
-            result_name = f"{Path(filename).stem}-kompres.jpg" if result == output else filename
-        else:
-            if extension in OFFICE_EXTENSIONS:
-                output = folder / f"compressed{extension}"
-                compress_office(source, output, level)
-                result = output if output.stat().st_size < original_size else source
-                result_name = f"{Path(filename).stem}-kompres{extension}" if result == output else filename
-            else:
-                output = folder / "compressed.zip"
-                compress_generic(source, output, filename, level)
-                result = output
-                result_name = f"{Path(filename).stem or 'file'}-kompres.zip"
+        result, result_name = process_file(
+            source, filename, extension, level, folder / "result", original_size
+        )
 
         result_size = result.stat().st_size
         mime_type = (

@@ -24,7 +24,7 @@ Untuk instalasi tanpa hak administrator di Windows, biner Ghostscript juga bisa 
 
 ## Cara pakai
 
-Pilih atau seret satu file ke halaman, pilih tingkat kompresi, lalu klik **Kompres & Unduh**. Hasil akan terunduh otomatis dan ukuran sebelum/sesudah akan muncul di halaman.
+Pilih atau seret satu file ke halaman. Aplikasi akan menghitung perkiraan ukuran hasil untuk tingkat Kuat, Sedang, dan Ringan beserta persentase penghematannya. Pilih tingkat yang diinginkan, lalu klik **Kompres & Unduh**. Hasil akan terunduh otomatis dan ukuran sebelum/sesudah akan muncul di halaman.
 
 | Tingkat | PDF | Gambar |
 | --- | --- | --- |
